@@ -9,7 +9,7 @@ import (
 
 func main() {
 	pulumi.Run(func(ctx *pulumi.Context) error {
-		// ✅ 1. Create a VPC
+		//Created an VPC
 		vpc, err := ec2.NewVpc(ctx, "memescopeVpc", &ec2.VpcArgs{
 			CidrBlock:          pulumi.String("10.0.0.0/16"),
 			EnableDnsSupport:   pulumi.Bool(true),
@@ -19,7 +19,7 @@ func main() {
 			return err
 		}
 
-		// ✅ 2. Create Two Public Subnets in Different Availability Zones
+		//Created Two Public Subnets in Different Availability Zones
 		subnet1, err := ec2.NewSubnet(ctx, "memescopeSubnet1", &ec2.SubnetArgs{
 			VpcId:               vpc.ID(),
 			CidrBlock:           pulumi.String("10.0.1.0/24"),
@@ -40,7 +40,7 @@ func main() {
 			return err
 		}
 
-		// ✅ 3. Internet Gateway & Route Table
+		// Internet Gateway & Route Table
 		igw, err := ec2.NewInternetGateway(ctx, "memescopeIgw", &ec2.InternetGatewayArgs{
 			VpcId: vpc.ID(),
 		})
@@ -61,7 +61,7 @@ func main() {
 			return err
 		}
 
-		// Associate Route Table with Subnets
+		// Associated Route Table with Subnets
 		_, err = ec2.NewRouteTableAssociation(ctx, "memescopeRouteTableAssoc1", &ec2.RouteTableAssociationArgs{
 			SubnetId:     subnet1.ID(),
 			RouteTableId: routeTable.ID(),
@@ -78,7 +78,7 @@ func main() {
 			return err
 		}
 
-		// ✅ 4. Security Group for API and Database
+		// Security Group for API and Database
 		securityGroup, err := ec2.NewSecurityGroup(ctx, "memescopeSG", &ec2.SecurityGroupArgs{
 			VpcId: vpc.ID(),
 			Ingress: ec2.SecurityGroupIngressArray{
@@ -108,7 +108,7 @@ func main() {
 			return err
 		}
 
-		// ✅ 5. RDS PostgreSQL Database
+		// RDS PostgreSQL Database
 		dbSubnetGroup, err := rds.NewSubnetGroup(ctx, "memescope-db-subnetgroup", &rds.SubnetGroupArgs{
 			SubnetIds: pulumi.StringArray{subnet1.ID(), subnet2.ID()},
 		})
@@ -132,7 +132,7 @@ func main() {
 			return err
 		}
 
-		// ✅ 6. CloudWatch Log Group
+		//  CloudWatch Log Group
 		_, err = cloudwatch.NewLogGroup(ctx, "memescopeLogGroup", &cloudwatch.LogGroupArgs{
 			RetentionInDays: pulumi.Int(14),
 		})
@@ -140,7 +140,7 @@ func main() {
 			return err
 		}
 
-		// ✅ Export Outputs
+		// Exporting the  Outputs
 		ctx.Export("vpcId", vpc.ID())
 		ctx.Export("dbEndpoint", db.Endpoint)
 		ctx.Export("securityGroupId", securityGroup.ID())
