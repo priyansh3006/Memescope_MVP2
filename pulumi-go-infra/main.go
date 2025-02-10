@@ -28,7 +28,7 @@ func main() {
 			return err
 		}
 
-		// Starting the Internet Gateway
+		// Starting the Internet Gateway for external communication
 		igw, err := ec2.NewInternetGateway(ctx, "memescopeIgw", &ec2.InternetGatewayArgs{
 			VpcId: vpc.ID(),
 		})
@@ -40,7 +40,7 @@ func main() {
 		subnet1, err := ec2.NewSubnet(ctx, "memescopeSubnet1", &ec2.SubnetArgs{
 			VpcId:               vpc.ID(),
 			CidrBlock:           pulumi.String("10.0.1.0/24"),
-			MapPublicIpOnLaunch: pulumi.Bool(true),
+			MapPublicIpOnLaunch: pulumi.Bool(true), //public ip so instances can access internet
 			AvailabilityZone:    pulumi.String("us-east-1a"),
 		})
 		if err != nil {
@@ -59,6 +59,7 @@ func main() {
 		}
 
 		// Intializing the Security Group
+		//Needed for ecs service or api gateways for publi accessiblity
 		securityGroup, err := ec2.NewSecurityGroup(ctx, "memescopeSG", &ec2.SecurityGroupArgs{
 			VpcId: vpc.ID(),
 			Ingress: ec2.SecurityGroupIngressArray{
@@ -83,6 +84,7 @@ func main() {
 		}
 
 		// Route Table & Route Associations
+		//Route table defines how network traffic is directed within  VPC
 		routeTable, err := ec2.NewRouteTable(ctx, "memescopeRouteTable", &ec2.RouteTableArgs{
 			VpcId: vpc.ID(),
 			Routes: ec2.RouteTableRouteArray{
@@ -118,7 +120,7 @@ func main() {
 			return err
 		}
 
-		// ECS Task Definition
+		// ECS Task Definition(will have to modify this with real data)
 		taskDefinition, err := ecs.NewTaskDefinition(ctx, "realTimeTaskDef", &ecs.TaskDefinitionArgs{
 			Family:      pulumi.String("real-time-service"),
 			Cpu:         pulumi.String("512"),
@@ -152,6 +154,7 @@ func main() {
 			return err
 		}
 
+		//Starting the rds service(postgres)
 		db, err := rds.NewInstance(ctx, "memescope-db", &rds.InstanceArgs{
 			Engine:              pulumi.String("postgres"),
 			InstanceClass:       pulumi.String("db.t3.micro"),
@@ -176,7 +179,7 @@ func main() {
 			return err
 		}
 
-		// //✅ Keep the Existing ECS Cluster for Real-Time WebSocket Service
+		// // Keep the Existing ECS Cluster for Real-Time WebSocket Service
 		// ecsCluster, err := ecs.NewCluster(ctx, "memescopeCluster", &ecs.ClusterArgs{})
 		// if err != nil {
 		// 	return err
@@ -190,7 +193,7 @@ func main() {
 					Type: pulumi.String("S"),
 				},
 			},
-			BillingMode:    pulumi.String("PAY_PER_REQUEST"),
+			BillingMode:    pulumi.String("PAY_PER_REQUEST"), //AWS charges only for the read/write requests made.
 			HashKey:        pulumi.String("TradeID"),
 			StreamEnabled:  pulumi.Bool(true),
 			StreamViewType: pulumi.String("NEW_IMAGE"),
@@ -220,6 +223,7 @@ func main() {
 		}
 
 		//New IAM Role for Lambda
+		//Doing because AWS Lambda needs permissions to access other AWS services
 		lambdaRole, err := iam.NewRole(ctx, "lambdaExecutionRole", &iam.RoleArgs{
 			AssumeRolePolicy: pulumi.String(`{
 				"Version": "2012-10-17",
@@ -250,6 +254,7 @@ func main() {
 		}
 
 		// Attach SSM Permissions
+		//grants EC2 instances permissions to use AWS Systems Manager (SSM)
 		_, err = iam.NewRolePolicyAttachment(ctx, "ssmCoreAttachment", &iam.RolePolicyAttachmentArgs{
 			Role:      ssmRole.Name,
 			PolicyArn: pulumi.String("arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"),
@@ -273,8 +278,9 @@ func main() {
 		}
 
 		//New Lambda Function for WebSocket
+		//Will have to check later and might update the .zip file
 		websocketLambda, err := lambda.NewFunction(ctx, "WebSocketHandler", &lambda.FunctionArgs{
-			Runtime: pulumi.String("provided.al2"),
+			Runtime: pulumi.String("provided.al2"), //Amazon Linux 2 (AL2) runtime with a custom execution environment.Required when using a custom runtime, such as Go
 			Handler: pulumi.String("main"),
 			Role:    lambdaRole.Arn,
 			Code:    pulumi.NewFileArchive("./realtime_service.zip"),
