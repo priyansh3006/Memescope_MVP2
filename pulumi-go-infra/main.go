@@ -57,7 +57,6 @@ func main() {
 		if err != nil {
 			return err
 		}
-		//Including the Internet Gateway
 
 		// Intializing the Security Group
 		securityGroup, err := ec2.NewSecurityGroup(ctx, "memescopeSG", &ec2.SecurityGroupArgs{
@@ -200,13 +199,7 @@ func main() {
 			return err
 		}
 
-		// // New SNS Topic for Trade Updates
-		// tradeUpdatesTopic, err := sns.NewTopic(ctx, "TradeUpdatesTopic", &sns.TopicArgs{})
-		// if err != nil {
-		// 	return err
-		// }
-
-		// ✅ Create SNS Topic (Ensuring it Always Exists)
+		// Creating SNS Topic
 		tradeUpdatesTopic, err := sns.NewTopic(ctx, "TradeUpdatesTopic", &sns.TopicArgs{
 			Name: pulumi.String("TradeUpdatesTopic"), // Explicitly setting a name
 		})
@@ -214,7 +207,7 @@ func main() {
 			return err
 		}
 
-		// ✅ Force creation of the SSM Parameter by setting `ReplaceOnChanges`
+		// Force creation of the SSM Parameter by setting `ReplaceOnChanges`
 		_, err = ssm.NewParameter(ctx, "snsTopicArn", &ssm.ParameterArgs{
 			Name:      pulumi.String("snsTopicArn"),
 			Type:      pulumi.String("String"),
@@ -268,7 +261,7 @@ func main() {
 		// Attach IAM Role to EC2
 		_, err = ec2.NewInstance(ctx, "bastionHost", &ec2.InstanceArgs{
 			InstanceType: pulumi.String("t3.micro"),
-			Ami:          pulumi.String("ami-0c55b159cbfafe1f0"), // Replace with a valid Amazon Linux AMI
+			Ami:          pulumi.String("ami-0c55b159cbfafe1f0"), // will Replace with a valid Amazon Linux AMI
 			SubnetId:     subnet1.ID(),
 			VpcSecurityGroupIds: pulumi.StringArray{
 				securityGroup.ID(),
@@ -308,10 +301,11 @@ func main() {
 		ctx.Export("snsTopicArn", tradeUpdatesTopic.Arn)
 		ctx.Export("websocketLambdaArn", websocketLambda.Arn)
 		ctx.Export("apiGatewayUrl", apiGateway.ApiEndpoint)
-		ctx.Export("dbEndpoint", db.Endpoint) //  Useing the RDS instanc
+		ctx.Export("dbEndpoint", db.Endpoint)
 		ctx.Export("ecsClusterArn", ecsCluster.Arn)
 		ctx.Export("realTimeServiceID", service.ID())
 		ctx.Export("realTimeServiceName", service.Name)
+		ctx.Export("awsRegion", pulumi.String("us-east-1"))
 
 		return nil
 	})

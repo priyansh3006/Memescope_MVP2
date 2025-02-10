@@ -1,1 +1,3 @@
 secrets.env
+node_modules
+nestjs_graphql_api

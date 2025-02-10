@@ -12,7 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/sns"
-	"github.com/aws/aws-sdk-go/service/ssm" // AWS Systems Manager Parameter Store
+	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/gorilla/websocket"
 )
 
