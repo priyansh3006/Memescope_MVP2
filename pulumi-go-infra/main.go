@@ -179,12 +179,6 @@ func main() {
 			return err
 		}
 
-		// // Keep the Existing ECS Cluster for Real-Time WebSocket Service
-		// ecsCluster, err := ecs.NewCluster(ctx, "memescopeCluster", &ecs.ClusterArgs{})
-		// if err != nil {
-		// 	return err
-		//}
-
 		// Intializing the  DynamoDB Table
 		tradeTable, err := dynamodb.NewTable(ctx, "TradesTable", &dynamodb.TableArgs{
 			Attributes: dynamodb.TableAttributeArray{
