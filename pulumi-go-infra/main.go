@@ -172,8 +172,18 @@ func main() {
 		}
 
 		// CloudWatch Log Group
-		_, err = cloudwatch.NewLogGroup(ctx, "memescopeLogGroup", &cloudwatch.LogGroupArgs{
+		logGroup, err := cloudwatch.NewLogGroup(ctx, "memescopeLogGroup", &cloudwatch.LogGroupArgs{
 			RetentionInDays: pulumi.Int(14),
+		})
+		if err != nil {
+			return err
+		}
+
+		// Store CloudWatch Log Group in AWS SSM Parameter Store
+		ssmParam, err := ssm.NewParameter(ctx, "cloudWatchLogGroup", &ssm.ParameterArgs{
+			Name:  pulumi.String("cloudWatchLogGroup"),
+			Type:  pulumi.String("String"),
+			Value: logGroup.Name,
 		})
 		if err != nil {
 			return err
@@ -306,6 +316,7 @@ func main() {
 		ctx.Export("realTimeServiceID", service.ID())
 		ctx.Export("realTimeServiceName", service.Name)
 		ctx.Export("awsRegion", pulumi.String("us-east-1"))
+		ctx.Export("cloudWatchLogGroup", ssmParam.Name)
 
 		return nil
 	})

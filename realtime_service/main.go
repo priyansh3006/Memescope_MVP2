@@ -10,6 +10,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/sns"
 	"github.com/aws/aws-sdk-go/service/ssm"
@@ -18,15 +19,17 @@ import (
 
 // Initialize AWS Session
 var awsSession = session.Must(session.NewSession(&aws.Config{
-	Region: aws.String("us-east-1"),
+	Region: aws.String("us-east-1"), // Will Change if using a different region
 }))
 
-// Fetch Pulumi-managed resources
-var dynamoDBTable = getPulumiParameter("dynamoDbTableName") // DynamoDB Table provisioned via Pulumi
-var snsTopicArn = getPulumiParameter("snsTopicArn")         // SNS Topic provisioned via Pulumi
+// Fetch Pulumi-managed resources from SSM
+var dynamoDBTable = getPulumiParameter("dynamoDbTableName")
+var snsTopicArn = getPulumiParameter("snsTopicArn")
+var logGroupName = getPulumiParameter("cloudWatchLogGroup")
 
 var dynamoDB = dynamodb.New(awsSession)
 var snsClient = sns.New(awsSession)
+var cloudWatchClient = cloudwatchlogs.New(awsSession)
 
 // WebSocket Config
 var upgrader = websocket.Upgrader{
@@ -35,6 +38,9 @@ var upgrader = websocket.Upgrader{
 
 var clients = make(map[*websocket.Conn]bool)
 var mutex = sync.Mutex{}
+
+// CloudWatch Log Stream Name
+var logStreamName = fmt.Sprintf("log-stream-%d", time.Now().Unix())
 
 // Trade Action Struct
 type TradeAction struct {
@@ -46,7 +52,7 @@ type TradeAction struct {
 	Action    string  `json:"action"`
 }
 
-// Function to fetch Pulumi resource outputs from AWS SSM Parameter Store
+// Fetch Pulumi-exported parameters from AWS SSM Parameter Store
 func getPulumiParameter(paramName string) string {
 	ssmClient := ssm.New(awsSession)
 	param, err := ssmClient.GetParameter(&ssm.GetParameterInput{
@@ -61,11 +67,44 @@ func getPulumiParameter(paramName string) string {
 	return *param.Parameter.Value
 }
 
+// Initialize CloudWatch Log Stream
+func createLogStream() {
+	fmt.Println(logGroupName)
+	_, err := cloudWatchClient.CreateLogStream(&cloudwatchlogs.CreateLogStreamInput{
+		LogGroupName:  aws.String(logGroupName),
+		LogStreamName: aws.String(logStreamName),
+	})
+
+	if err != nil {
+		log.Fatalf("Failed to create CloudWatch log stream: %v", err)
+	}
+}
+
+// Log message to CloudWatch Logs
+func logToCloudWatch(message string) {
+	timestamp := time.Now().UnixNano() / int64(time.Millisecond)
+
+	_, err := cloudWatchClient.PutLogEvents(&cloudwatchlogs.PutLogEventsInput{
+		LogGroupName:  aws.String(logGroupName),
+		LogStreamName: aws.String(logStreamName),
+		LogEvents: []*cloudwatchlogs.InputLogEvent{
+			{
+				Message:   aws.String(message),
+				Timestamp: aws.Int64(timestamp),
+			},
+		},
+	})
+
+	if err != nil {
+		log.Printf("Failed to send log to CloudWatch: %v", err)
+	}
+}
+
 // WebSocket Handler
 func handleConnections(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println("WebSocket Upgrade Error:", err)
+		logToCloudWatch(fmt.Sprintf("WebSocket Upgrade Error: %v", err))
 		return
 	}
 	defer conn.Close()
@@ -74,12 +113,12 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	clients[conn] = true
 	mutex.Unlock()
 
-	log.Println("New WebSocket connection")
+	logToCloudWatch("New WebSocket connection established")
 
 	for {
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
-			log.Println("Client disconnected")
+			logToCloudWatch("Client disconnected")
 			mutex.Lock()
 			delete(clients, conn)
 			mutex.Unlock()
@@ -88,7 +127,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 
 		var trade TradeAction
 		if err := json.Unmarshal(msg, &trade); err != nil {
-			log.Println("Invalid trade action format:", err)
+			logToCloudWatch(fmt.Sprintf("Invalid trade action format: %v", err))
 			continue
 		}
 
@@ -106,7 +145,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 // Save Trade Action to DynamoDB
 func saveTradeToDynamoDB(trade TradeAction) {
 	_, err := dynamoDB.PutItem(&dynamodb.PutItemInput{
-		TableName: aws.String(dynamoDBTable), // Using Pulumi provisioned table
+		TableName: aws.String(dynamoDBTable),
 		Item: map[string]*dynamodb.AttributeValue{
 			"TradeID":   {S: aws.String(trade.TradeID)},
 			"Timestamp": {S: aws.String(trade.Timestamp)},
@@ -117,7 +156,7 @@ func saveTradeToDynamoDB(trade TradeAction) {
 		},
 	})
 	if err != nil {
-		log.Println("Error saving trade to DynamoDB:", err)
+		logToCloudWatch(fmt.Sprintf("Error saving trade to DynamoDB: %v", err))
 		return
 	}
 
@@ -129,11 +168,11 @@ func saveTradeToDynamoDB(trade TradeAction) {
 func publishTradeToSNS(trade TradeAction) {
 	data, _ := json.Marshal(trade)
 	_, err := snsClient.Publish(&sns.PublishInput{
-		TopicArn: aws.String(snsTopicArn), // Using Pulumi provisioned SNS topic
+		TopicArn: aws.String(snsTopicArn),
 		Message:  aws.String(string(data)),
 	})
 	if err != nil {
-		log.Println("Error publishing to SNS:", err)
+		logToCloudWatch(fmt.Sprintf("Error publishing to SNS: %v", err))
 	}
 }
 
@@ -146,7 +185,7 @@ func broadcastTrade(trade TradeAction) {
 	for client := range clients {
 		err := client.WriteMessage(websocket.TextMessage, data)
 		if err != nil {
-			log.Println("WebSocket Write Error:", err)
+			logToCloudWatch(fmt.Sprintf("WebSocket Write Error: %v", err))
 			client.Close()
 			delete(clients, client)
 		}
@@ -155,9 +194,12 @@ func broadcastTrade(trade TradeAction) {
 
 // Start WebSocket Server
 func main() {
+	createLogStream() // Ensure log stream is created before logging
+	logToCloudWatch("Starting WebSocket server...")
+
 	http.HandleFunc("/ws", handleConnections)
 
 	port := ":8080"
-	log.Println("WebSocket server running on port", port)
+	logToCloudWatch(fmt.Sprintf("WebSocket server running on port %s", port))
 	log.Fatal(http.ListenAndServe(port, nil))
 }
