@@ -2,8 +2,14 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 import { SSMClient, GetParameterCommand } from "@aws-sdk/client-ssm";
+import { CloudWatchLogsClient, PutLogEventsCommand, CreateLogStreamCommand } from "@aws-sdk/client-cloudwatch-logs";
 
-async function getSSMParameter(ssmClient: SSMClient, name: string): Promise<string | null> {
+// Initialize AWS Clients
+const ssmClient = new SSMClient({ region: "us-east-1" });
+const cloudWatchClient = new CloudWatchLogsClient({ region: "us-east-1" });
+
+// Fetch parameters from AWS SSM
+async function getSSMParameter(name: string): Promise<string | null> {
   try {
     const command = new GetParameterCommand({ Name: name, WithDecryption: true });
     const response = await ssmClient.send(command);
@@ -14,31 +20,66 @@ async function getSSMParameter(ssmClient: SSMClient, name: string): Promise<stri
   }
 }
 
+// CloudWatch Logging
+let logGroupName: string;
+let logStreamName: string = `nestjs-log-stream-${Date.now()}`;
+
+// Create CloudWatch Log Stream
+async function createLogStream() {
+  try {
+    logGroupName = await getSSMParameter("cloudWatchLogGroup") || "/nestjs/default-log-group";
+
+    const createStreamCommand = new CreateLogStreamCommand({
+      logGroupName,
+      logStreamName,
+    });
+    await cloudWatchClient.send(createStreamCommand);
+  } catch (error) {
+    console.error("Failed to create CloudWatch Log Stream:", error);
+  }
+}
+
+// Send logs to CloudWatch
+async function logToCloudWatch(message: string) {
+  try {
+    const timestamp = Date.now();
+    const logCommand = new PutLogEventsCommand({
+      logGroupName,
+      logStreamName,
+      logEvents: [{ message, timestamp }],
+    });
+    await cloudWatchClient.send(logCommand);
+  } catch (error) {
+    console.error("Failed to send log to CloudWatch:", error);
+  }
+}
+
+// Bootstrap Function
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
-  // AWS SSM Client Initialization
-  const ssmClient = new SSMClient({ region: "us-east-1" });
+  // Initialize CloudWatch Logging
+  await createLogStream();
 
-  // Load AWS parameters from SSM if not available in env
-  process.env.DYNAMODB_TABLE = process.env.DYNAMODB_TABLE || await getSSMParameter(ssmClient, "dynamoDbTableName") || "helloworld";
-  process.env.SNS_TOPIC_ARN = process.env.SNS_TOPIC_ARN || await getSSMParameter(ssmClient, "snsTopicArn") || "helloworld";
+  // Fetch AWS SSM parameters
+  process.env.DYNAMODB_TABLE = process.env.DYNAMODB_TABLE || await getSSMParameter("dynamoDbTableName") || "helloworld";
+  process.env.SNS_TOPIC_ARN = process.env.SNS_TOPIC_ARN || await getSSMParameter("snsTopicArn") || "helloworld";
 
-  //debugging the dynamoDB and SNS parameters
-  console.log(` Using DynamoDB Table: ${process.env.DYNAMODB_TABLE}`);
-  console.log(`Using SNS Topic ARN: ${process.env.SNS_TOPIC_ARN}`);
+  // Log environment variables
+  logToCloudWatch(`Using DynamoDB Table: ${process.env.DYNAMODB_TABLE}`);
+  logToCloudWatch(`Using SNS Topic ARN: ${process.env.SNS_TOPIC_ARN}`);
 
-  // Ensure parameters are set
   if (!process.env.DYNAMODB_TABLE || !process.env.SNS_TOPIC_ARN) {
-    console.error("Missing AWS parameters! Ensure they are available in SSM or .env");
+    logToCloudWatch("Missing AWS parameters! Ensure they are available in SSM or .env");
     process.exit(1);
   }
 
-  // Get port from ConfigService or default to 3000
+  // Start the server
   const port = configService.get<number>('PORT') || 3000;
   await app.listen(port);
-  console.log(` GraphQL API running on http://localhost:${port}/graphql`);
+
+  logToCloudWatch(`GraphQL API running on http://localhost:${port}/graphql`);
 }
 
 bootstrap();
