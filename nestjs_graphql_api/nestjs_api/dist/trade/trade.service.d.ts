@@ -8,6 +8,10 @@ export declare class TradeService {
     private readonly logger;
     constructor(configService: ConfigService);
     initializeDynamoDB(): Promise<void>;
+    getTraderPnL(username: string): Promise<{
+        totalProfit: number;
+        totalLoss: number;
+    }>;
     getAllTrades(): Promise<Trade[]>;
     getTopTradersByProfit(limit?: number): Promise<TraderStats[]>;
     getTopLosingTraders(limit?: number): Promise<TraderStats[]>;

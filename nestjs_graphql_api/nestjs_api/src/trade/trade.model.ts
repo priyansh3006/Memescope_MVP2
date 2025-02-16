@@ -1,4 +1,4 @@
-import { Field, ObjectType } from '@nestjs/graphql';
+import { Float, Field, ObjectType } from '@nestjs/graphql';
 
 @ObjectType()
 export class Trade {
@@ -31,5 +31,14 @@ export class TraderStats {
   totalProfit: number;
 
   @Field()
+  totalLoss: number;
+}
+
+@ObjectType()
+export class TraderPnL {
+  @Field(() => Float)
+  totalProfit: number;
+
+  @Field(() => Float)
   totalLoss: number;
 }

@@ -11,3 +11,7 @@ export declare class TraderStats {
     totalProfit: number;
     totalLoss: number;
 }
+export declare class TraderPnL {
+    totalProfit: number;
+    totalLoss: number;
+}

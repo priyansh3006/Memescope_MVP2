@@ -17,6 +17,7 @@ const graphql_1 = require("@nestjs/graphql");
 const trade_service_1 = require("./trade.service");
 const trade_model_1 = require("./trade.model");
 const trader_stats_model_1 = require("./trader_stats.model");
+const trade_model_2 = require("./trade.model");
 let TradeResolver = class TradeResolver {
     constructor(tradeService) {
         this.tradeService = tradeService;
@@ -32,6 +33,9 @@ let TradeResolver = class TradeResolver {
     }
     async createTrade(price, volume, trader, action) {
         return this.tradeService.createTrade(price, volume, trader, action);
+    }
+    async getTraderPnL(username) {
+        return this.tradeService.getTraderPnL(username);
     }
 };
 exports.TradeResolver = TradeResolver;
@@ -65,6 +69,13 @@ __decorate([
     __metadata("design:paramtypes", [Number, Number, String, String]),
     __metadata("design:returntype", Promise)
 ], TradeResolver.prototype, "createTrade", null);
+__decorate([
+    (0, graphql_1.Query)(() => trade_model_2.TraderPnL, { nullable: true }),
+    __param(0, (0, graphql_1.Args)('username')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], TradeResolver.prototype, "getTraderPnL", null);
 exports.TradeResolver = TradeResolver = __decorate([
     (0, graphql_1.Resolver)(() => trade_model_1.Trade),
     __metadata("design:paramtypes", [trade_service_1.TradeService])

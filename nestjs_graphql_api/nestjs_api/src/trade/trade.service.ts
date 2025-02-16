@@ -18,51 +18,77 @@ export class TradeService {
 
   async initializeDynamoDB() {
     try {
-      // Fetch DynamoDB Table Name & Region from AWS SSM
       this.tableName = await this.configService.getParameter('dynamoDbTableName');
-      const awsRegion = "us-east-1"; // Ensure Pulumi exports region
+      const awsRegion = "us-east-1";
 
       if (!this.tableName || !awsRegion) {
-        console.log(this.tableName);
-        console.log(awsRegion);
-        throw new Error(' Missing AWS Parameters: DynamoDB Table Name or Region is not set.');
+        throw new Error('Missing AWS Parameters: DynamoDB Table Name or Region is not set.');
       }
 
       this.logger.log(`🔹 Using DynamoDB Table: ${this.tableName} in Region: ${awsRegion}`);
-
-      // Initialize DynamoDB Client with AWS Credentials from Environment (Pulumi-configured)
       this.dynamoDB = new DynamoDBClient({ region: awsRegion });
-
     } catch (error) {
-      this.logger.error(` Failed to initialize DynamoDB: ${error.message}`);
+      this.logger.error(`Failed to initialize DynamoDB: ${error.message}`);
       throw error;
     }
   }
 
-  
-
-  async getAllTrades(): Promise<Trade[]> {
+  // ✅ Get Trader's PnL by Username
+  async getTraderPnL(username: string): Promise<{ totalProfit: number; totalLoss: number }> {
     try {
       if (!this.tableName) {
-        await this.initializeDynamoDB(); // Ensure table name is loaded
+        await this.initializeDynamoDB();
       }
 
-      const command = new ScanCommand({
-        TableName: this.tableName,
-      });
-
+      const command = new ScanCommand({ TableName: this.tableName });
       const response = await this.dynamoDB.send(command);
 
       if (!response.Items || response.Items.length === 0) {
-        this.logger.warn('⚠️ No trades found in DynamoDB.');
+        return { totalProfit: 0, totalLoss: 0 };
+      }
+
+      const trades = response.Items
+        .map(item => unmarshall(item))
+        .filter(trade => trade.Trader === username);
+
+      let totalProfit = 0;
+      let totalLoss = 0;
+
+      trades.forEach(trade => {
+        const tradeValue = trade.price * trade.volume;
+        if (trade.action === 'BUY') {
+          totalLoss += tradeValue;
+        } else if (trade.action === 'SELL') {
+          totalProfit += tradeValue;
+        }
+      });
+
+      return { totalProfit, totalLoss };
+    } catch (error) {
+      this.logger.error(`Error fetching PnL for trader ${username}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  // ✅ Get All Trades
+  async getAllTrades(): Promise<Trade[]> {
+    try {
+      if (!this.tableName) {
+        await this.initializeDynamoDB();
+      }
+
+      const command = new ScanCommand({ TableName: this.tableName });
+      const response = await this.dynamoDB.send(command);
+
+      if (!response.Items || response.Items.length === 0) {
         return [];
       }
 
       return response.Items.map((item) => ({
-        tradeId: item?.TradeID?.S || "UNKNOWN_ID",  // Ensure a fallback value
-        timestamp: item?.Timestamp?.S || new Date().toISOString(), // Added timestamp field
-        price: item?.Price?.N ? parseFloat(item.Price.N) : 0,  // Convert safely
-        volume: item?.Volume?.N ? parseInt(item.Volume.N, 10) : 0,  // Convert safely
+        tradeId: item?.TradeID?.S || "UNKNOWN_ID",
+        timestamp: item?.Timestamp?.S || new Date().toISOString(),
+        price: item?.Price?.N ? parseFloat(item.Price.N) : 0,
+        volume: item?.Volume?.N ? parseInt(item.Volume.N, 10) : 0,
         trader: item?.Trader?.S || "UNKNOWN_TRADER",
         action: item?.Action?.S || "UNKNOWN_ACTION",
       }));
@@ -72,117 +98,96 @@ export class TradeService {
     }
   }
 
-  //Top trader according to the proft
+  // ✅ Get Top Profitable Traders
   async getTopTradersByProfit(limit: number = 10): Promise<TraderStats[]> {
     try {
       if (!this.tableName) {
         await this.initializeDynamoDB();
       }
-  
-      const command = new ScanCommand({
-        TableName: this.tableName,
-      });
-  
+
+      const command = new ScanCommand({ TableName: this.tableName });
       const response = await this.dynamoDB.send(command);
-  
+
       if (!response.Items || response.Items.length === 0) {
-        this.logger.warn('No trades found for leaderboard calculation.');
         return [];
       }
-  
-      // Convert items from DynamoDB format
-      const trades = response.Items.map((item) => ({
-        trader: item?.Trader?.S || 'UNKNOWN_TRADER',
+
+      const trades = response.Items.map(item => ({
+        trader: item?.Trader?.S || "UNKNOWN_TRADER",
         price: item?.Price?.N ? parseFloat(item.Price.N) : 0,
         volume: item?.Volume?.N ? parseInt(item.Volume.N, 10) : 0,
-        action: item?.Action?.S || 'UNKNOWN_ACTION',
+        action: item?.Action?.S || "UNKNOWN_ACTION"
       }));
-  
-      // Group trades by trader and calculate profit
+
       const traderMap = new Map<string, number>();
-  
-      trades.forEach((trade) => {
+
+      trades.forEach(trade => {
         const tradeValue = trade.price * trade.volume;
         const currentProfit = traderMap.get(trade.trader) || 0;
-  
+
         if (trade.action === 'BUY') {
           traderMap.set(trade.trader, currentProfit - tradeValue);
         } else if (trade.action === 'SELL') {
           traderMap.set(trade.trader, currentProfit + tradeValue);
         }
       });
-  
-      // Convert to an array and sort by profit (descending)
-      const leaderboard = Array.from(traderMap.entries())
+
+      return Array.from(traderMap.entries())
         .map(([trader, totalProfit]) => ({ trader, totalProfit }))
-        .filter((t) => t.totalProfit > 0) // ✅ Only keep profitable traders
-        .sort((a, b) => b.totalProfit - a.totalProfit) // ✅ Sort in descending order
-        .slice(0, limit); // ✅ Allow selecting top `N` traders
-  
-      return leaderboard;
+        .filter(t => t.totalProfit > 0)
+        .sort((a, b) => b.totalProfit - a.totalProfit)
+        .slice(0, limit);
     } catch (error) {
       this.logger.error(`Error calculating top traders by profit: ${error.message}`);
       throw error;
     }
   }
-  
 
-  //Top traders according to loss
+  // ✅ Get Top Losing Traders
   async getTopLosingTraders(limit: number = 5): Promise<TraderStats[]> {
     try {
       if (!this.tableName) {
         await this.initializeDynamoDB();
       }
-  
-      const command = new ScanCommand({
-        TableName: this.tableName,
-      });
-  
+
+      const command = new ScanCommand({ TableName: this.tableName });
       const response = await this.dynamoDB.send(command);
-  
+
       if (!response.Items || response.Items.length === 0) {
-        this.logger.warn('No trades found for loss leaderboard calculation.');
         return [];
       }
-  
-      // Convert DynamoDB response to usable format
-      const trades = response.Items.map((item) => ({
-        trader: item?.Trader?.S || 'UNKNOWN_TRADER',
+
+      const trades = response.Items.map(item => ({
+        trader: item?.Trader?.S || "UNKNOWN_TRADER",
         price: item?.Price?.N ? parseFloat(item.Price.N) : 0,
         volume: item?.Volume?.N ? parseInt(item.Volume.N, 10) : 0,
-        action: item?.Action?.S || 'UNKNOWN_ACTION',
+        action: item?.Action?.S || "UNKNOWN_ACTION"
       }));
-  
-      // Group trades by trader and calculate total loss
+
       const traderLosses = new Map<string, number>();
-  
-      trades.forEach((trade) => {
+
+      trades.forEach(trade => {
         const tradeValue = trade.price * trade.volume;
         const currentLoss = traderLosses.get(trade.trader) || 0;
-  
+
         if (trade.action === 'BUY') {
-          traderLosses.set(trade.trader, currentLoss - tradeValue);
-        } else if (trade.action === 'SELL') {
           traderLosses.set(trade.trader, currentLoss + tradeValue);
+        } else if (trade.action === 'SELL') {
+          traderLosses.set(trade.trader, currentLoss - tradeValue);
         }
       });
-  
-      // Filter only losing traders and sort by total loss (ascending)
-      const leaderboard = Array.from(traderLosses.entries())
+
+      return Array.from(traderLosses.entries())
         .map(([trader, totalLoss]) => ({ trader, totalLoss }))
-        .filter((t) => t.totalLoss < 0) // Keep only traders with losses
-        .sort((a, b) => a.totalLoss - b.totalLoss) // Sort in ascending order (biggest loss first)
-        .slice(0, limit); // Limit results
-  
-      return leaderboard;
+        .sort((a, b) => a.totalLoss - b.totalLoss)
+        .slice(0, limit);
     } catch (error) {
       this.logger.error(`Error calculating losing traders leaderboard: ${error.message}`);
       throw error;
     }
   }
-  
-  
-  // Create a new trade record in DynamoDB
+
+  // ✅ Create Trade
   async createTrade(price: number, volume: number, trader: string, action: string): Promise<Trade> {
     try {
       if (!this.tableName) {
@@ -211,10 +216,9 @@ export class TradeService {
       });
 
       await this.dynamoDB.send(command);
-      this.logger.log(`Trade created successfully: ${JSON.stringify(trade)}`);
       return trade;
     } catch (error) {
-      this.logger.error(` Error storing trade: ${error.message}`);
+      this.logger.error(`Error storing trade: ${error.message}`);
       throw error;
     }
   }

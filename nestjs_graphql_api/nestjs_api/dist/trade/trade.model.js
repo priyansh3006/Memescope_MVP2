@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TraderStats = exports.Trade = void 0;
+exports.TraderPnL = exports.TraderStats = exports.Trade = void 0;
 const graphql_1 = require("@nestjs/graphql");
 let Trade = class Trade {
 };
@@ -59,4 +59,18 @@ __decorate([
 exports.TraderStats = TraderStats = __decorate([
     (0, graphql_1.ObjectType)()
 ], TraderStats);
+let TraderPnL = class TraderPnL {
+};
+exports.TraderPnL = TraderPnL;
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.Float),
+    __metadata("design:type", Number)
+], TraderPnL.prototype, "totalProfit", void 0);
+__decorate([
+    (0, graphql_1.Field)(() => graphql_1.Float),
+    __metadata("design:type", Number)
+], TraderPnL.prototype, "totalLoss", void 0);
+exports.TraderPnL = TraderPnL = __decorate([
+    (0, graphql_1.ObjectType)()
+], TraderPnL);
 //# sourceMappingURL=trade.model.js.map

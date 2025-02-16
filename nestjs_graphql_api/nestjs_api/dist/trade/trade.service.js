@@ -13,6 +13,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TradeService = void 0;
 const common_1 = require("@nestjs/common");
 const client_dynamodb_1 = require("@aws-sdk/client-dynamodb");
+const util_dynamodb_1 = require("@aws-sdk/util-dynamodb");
 const uuid_1 = require("uuid");
 const config_service_1 = require("../config/config.service");
 let TradeService = TradeService_1 = class TradeService {
@@ -26,15 +27,44 @@ let TradeService = TradeService_1 = class TradeService {
             this.tableName = await this.configService.getParameter('dynamoDbTableName');
             const awsRegion = "us-east-1";
             if (!this.tableName || !awsRegion) {
-                console.log(this.tableName);
-                console.log(awsRegion);
-                throw new Error(' Missing AWS Parameters: DynamoDB Table Name or Region is not set.');
+                throw new Error('Missing AWS Parameters: DynamoDB Table Name or Region is not set.');
             }
             this.logger.log(`🔹 Using DynamoDB Table: ${this.tableName} in Region: ${awsRegion}`);
             this.dynamoDB = new client_dynamodb_1.DynamoDBClient({ region: awsRegion });
         }
         catch (error) {
-            this.logger.error(` Failed to initialize DynamoDB: ${error.message}`);
+            this.logger.error(`Failed to initialize DynamoDB: ${error.message}`);
+            throw error;
+        }
+    }
+    async getTraderPnL(username) {
+        try {
+            if (!this.tableName) {
+                await this.initializeDynamoDB();
+            }
+            const command = new client_dynamodb_1.ScanCommand({ TableName: this.tableName });
+            const response = await this.dynamoDB.send(command);
+            if (!response.Items || response.Items.length === 0) {
+                return { totalProfit: 0, totalLoss: 0 };
+            }
+            const trades = response.Items
+                .map(item => (0, util_dynamodb_1.unmarshall)(item))
+                .filter(trade => trade.Trader === username);
+            let totalProfit = 0;
+            let totalLoss = 0;
+            trades.forEach(trade => {
+                const tradeValue = trade.price * trade.volume;
+                if (trade.action === 'BUY') {
+                    totalLoss += tradeValue;
+                }
+                else if (trade.action === 'SELL') {
+                    totalProfit += tradeValue;
+                }
+            });
+            return { totalProfit, totalLoss };
+        }
+        catch (error) {
+            this.logger.error(`Error fetching PnL for trader ${username}: ${error.message}`);
             throw error;
         }
     }
@@ -43,12 +73,9 @@ let TradeService = TradeService_1 = class TradeService {
             if (!this.tableName) {
                 await this.initializeDynamoDB();
             }
-            const command = new client_dynamodb_1.ScanCommand({
-                TableName: this.tableName,
-            });
+            const command = new client_dynamodb_1.ScanCommand({ TableName: this.tableName });
             const response = await this.dynamoDB.send(command);
             if (!response.Items || response.Items.length === 0) {
-                this.logger.warn('⚠️ No trades found in DynamoDB.');
                 return [];
             }
             return response.Items.map((item) => ({
@@ -70,22 +97,19 @@ let TradeService = TradeService_1 = class TradeService {
             if (!this.tableName) {
                 await this.initializeDynamoDB();
             }
-            const command = new client_dynamodb_1.ScanCommand({
-                TableName: this.tableName,
-            });
+            const command = new client_dynamodb_1.ScanCommand({ TableName: this.tableName });
             const response = await this.dynamoDB.send(command);
             if (!response.Items || response.Items.length === 0) {
-                this.logger.warn('No trades found for leaderboard calculation.');
                 return [];
             }
-            const trades = response.Items.map((item) => ({
-                trader: item?.Trader?.S || 'UNKNOWN_TRADER',
+            const trades = response.Items.map(item => ({
+                trader: item?.Trader?.S || "UNKNOWN_TRADER",
                 price: item?.Price?.N ? parseFloat(item.Price.N) : 0,
                 volume: item?.Volume?.N ? parseInt(item.Volume.N, 10) : 0,
-                action: item?.Action?.S || 'UNKNOWN_ACTION',
+                action: item?.Action?.S || "UNKNOWN_ACTION"
             }));
             const traderMap = new Map();
-            trades.forEach((trade) => {
+            trades.forEach(trade => {
                 const tradeValue = trade.price * trade.volume;
                 const currentProfit = traderMap.get(trade.trader) || 0;
                 if (trade.action === 'BUY') {
@@ -95,12 +119,11 @@ let TradeService = TradeService_1 = class TradeService {
                     traderMap.set(trade.trader, currentProfit + tradeValue);
                 }
             });
-            const leaderboard = Array.from(traderMap.entries())
+            return Array.from(traderMap.entries())
                 .map(([trader, totalProfit]) => ({ trader, totalProfit }))
-                .filter((t) => t.totalProfit > 0)
+                .filter(t => t.totalProfit > 0)
                 .sort((a, b) => b.totalProfit - a.totalProfit)
                 .slice(0, limit);
-            return leaderboard;
         }
         catch (error) {
             this.logger.error(`Error calculating top traders by profit: ${error.message}`);
@@ -112,37 +135,32 @@ let TradeService = TradeService_1 = class TradeService {
             if (!this.tableName) {
                 await this.initializeDynamoDB();
             }
-            const command = new client_dynamodb_1.ScanCommand({
-                TableName: this.tableName,
-            });
+            const command = new client_dynamodb_1.ScanCommand({ TableName: this.tableName });
             const response = await this.dynamoDB.send(command);
             if (!response.Items || response.Items.length === 0) {
-                this.logger.warn('No trades found for loss leaderboard calculation.');
                 return [];
             }
-            const trades = response.Items.map((item) => ({
-                trader: item?.Trader?.S || 'UNKNOWN_TRADER',
+            const trades = response.Items.map(item => ({
+                trader: item?.Trader?.S || "UNKNOWN_TRADER",
                 price: item?.Price?.N ? parseFloat(item.Price.N) : 0,
                 volume: item?.Volume?.N ? parseInt(item.Volume.N, 10) : 0,
-                action: item?.Action?.S || 'UNKNOWN_ACTION',
+                action: item?.Action?.S || "UNKNOWN_ACTION"
             }));
             const traderLosses = new Map();
-            trades.forEach((trade) => {
+            trades.forEach(trade => {
                 const tradeValue = trade.price * trade.volume;
                 const currentLoss = traderLosses.get(trade.trader) || 0;
                 if (trade.action === 'BUY') {
-                    traderLosses.set(trade.trader, currentLoss - tradeValue);
-                }
-                else if (trade.action === 'SELL') {
                     traderLosses.set(trade.trader, currentLoss + tradeValue);
                 }
+                else if (trade.action === 'SELL') {
+                    traderLosses.set(trade.trader, currentLoss - tradeValue);
+                }
             });
-            const leaderboard = Array.from(traderLosses.entries())
+            return Array.from(traderLosses.entries())
                 .map(([trader, totalLoss]) => ({ trader, totalLoss }))
-                .filter((t) => t.totalLoss < 0)
                 .sort((a, b) => a.totalLoss - b.totalLoss)
                 .slice(0, limit);
-            return leaderboard;
         }
         catch (error) {
             this.logger.error(`Error calculating losing traders leaderboard: ${error.message}`);
@@ -174,11 +192,10 @@ let TradeService = TradeService_1 = class TradeService {
                 },
             });
             await this.dynamoDB.send(command);
-            this.logger.log(`Trade created successfully: ${JSON.stringify(trade)}`);
             return trade;
         }
         catch (error) {
-            this.logger.error(` Error storing trade: ${error.message}`);
+            this.logger.error(`Error storing trade: ${error.message}`);
             throw error;
         }
     }

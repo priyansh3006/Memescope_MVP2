@@ -128,7 +128,7 @@ func main() {
 			NetworkMode: pulumi.String("awsvpc"),
 			ContainerDefinitions: pulumi.String(fmt.Sprintf(`[{
 				"name": "realtime-service",
-				"image": "your-dockerhub-username/realtime-service:latest",
+				"image": "priyanshgupta3006/realtime-service:latest",
 				"cpu": 512,
 				"memory": 1024,
 				"portMappings": [{"containerPort": 8080, "hostPort": 8080}]
@@ -243,24 +243,24 @@ func main() {
 		}
 
 		// Create IAM Role for SSM
-		ssmRole, err := iam.NewRole(ctx, "ec2SSMRole", &iam.RoleArgs{
-			AssumeRolePolicy: pulumi.String(`{
-        	"Version": "2012-10-17",
-        	"Statement": [{
-            	"Effect": "Allow",
-            	"Principal": {"Service": "ec2.amazonaws.com"},
-            	"Action": "sts:AssumeRole"
-        }]
-    }`),
-		})
-		if err != nil {
-			return err
-		}
+		// 	ssmRole, err := iam.NewRole(ctx, "ec2SSMRole", &iam.RoleArgs{
+		// 		AssumeRolePolicy: pulumi.String(`{
+		//     	"Version": "2012-10-17",
+		//     	"Statement": [{
+		//         	"Effect": "Allow",
+		//         	"Principal": {"Service": "ec2.amazonaws.com"},
+		//         	"Action": "sts:AssumeRole"
+		//     }]
+		// }`),
+		// 	})
+		// 	if err != nil {
+		// 		return err
+		// 	}
 
 		// Attach SSM Permissions
 		//grants EC2 instances permissions to use AWS Systems Manager (SSM)
 		_, err = iam.NewRolePolicyAttachment(ctx, "ssmCoreAttachment", &iam.RolePolicyAttachmentArgs{
-			Role:      ssmRole.Name,
+			Role:      pulumi.String("ec2SSMRole-1835f81"),
 			PolicyArn: pulumi.String("arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"),
 		})
 		if err != nil {
@@ -270,12 +270,12 @@ func main() {
 		// Attach IAM Role to EC2
 		_, err = ec2.NewInstance(ctx, "bastionHost", &ec2.InstanceArgs{
 			InstanceType: pulumi.String("t3.micro"),
-			Ami:          pulumi.String("ami-0c55b159cbfafe1f0"), // will Replace with a valid Amazon Linux AMI
+			Ami:          pulumi.String("ami-0c104f6f4a5d9d1d5"), // will Replace with a valid Amazon Linux AMI
 			SubnetId:     subnet1.ID(),
 			VpcSecurityGroupIds: pulumi.StringArray{
 				securityGroup.ID(),
 			},
-			IamInstanceProfile: ssmRole.Name,
+			IamInstanceProfile: pulumi.String("ec2SSMInstanceProfile"),
 		})
 		if err != nil {
 			return err
