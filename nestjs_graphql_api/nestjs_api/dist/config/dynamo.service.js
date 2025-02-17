@@ -76,29 +76,41 @@ let DynamoService = class DynamoService {
             throw new Error('DynamoDB FetchLeaderboard Error');
         }
     }
-    async getLeaderboard(limit = 10) {
+    async getLeaderboard() {
         if (!this.tableName) {
-            throw new Error('DynamoDB table name is not initialized yet.');
+            this.tableName = await this.loadDynamoDBTableName();
         }
         const params = {
             TableName: this.tableName,
-            Limit: limit,
+            ProjectionExpression: "traderId, totalPnL, tradeCount, #ts",
+            ExpressionAttributeNames: {
+                "#ts": "timestamp"
+            }
         };
         try {
-            const command = new client_dynamodb_1.ScanCommand(params);
-            const response = await this.client.send(command);
-            if (!response.Items) {
+            console.log("📌 Fetching leaderboard with params:", JSON.stringify(params, null, 2));
+            const response = await this.client.send(new client_dynamodb_1.ScanCommand(params));
+            if (!response.Items || response.Items.length === 0) {
+                console.log("ℹ️ No items found in DynamoDB");
                 return [];
             }
+            console.log(`✅ Found ${response.Items.length} entries in leaderboard`);
             return response.Items.map(item => ({
-                traderId: item.traderId?.S ?? '',
-                totalPnL: parseFloat(item.totalPnL?.N ?? '0'),
-                tradeCount: parseInt(item.tradeCount?.N ?? '0', 10),
-            })).sort((a, b) => b.totalPnL - a.totalPnL);
+                trader: item.traderId?.S || "Unknown",
+                totalPnL: parseFloat(item.totalPnL?.N || "0"),
+                tradeCount: parseInt(item.tradeCount?.N || "0", 10),
+                timestamp: item.timestamp?.N
+                    ? new Date(parseInt(item.timestamp.N)).toISOString()
+                    : new Date().toISOString()
+            }));
         }
         catch (error) {
-            console.error('⚠️ Error fetching leaderboard:', error);
-            throw new Error('DynamoDB GetLeaderboard Error');
+            console.error("❌ ERROR: Fetching leaderboard from DynamoDB:", {
+                error: error.message,
+                code: error.code,
+                requestId: error.$metadata?.requestId
+            });
+            throw new Error(`DynamoDB Fetch Error: ${error.message}`);
         }
     }
 };

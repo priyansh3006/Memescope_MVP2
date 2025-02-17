@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DynamoDBClient, PutItemCommand, ScanCommand ,QueryCommand, QueryCommandOutput} from '@aws-sdk/client-dynamodb';
 import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
+import { LeaderboardEntry } from '../leaderboard/trader.entity';
 
 @Injectable()
 export class DynamoService {
@@ -93,32 +94,47 @@ export class DynamoService {
   /**
    * Fetch leaderboard sorted by Profit & Loss
    */
-  async getLeaderboard(limit = 10) {
+  async getLeaderboard(): Promise<LeaderboardEntry[]> {
+    // Ensure table name is loaded
     if (!this.tableName) {
-      throw new Error('DynamoDB table name is not initialized yet.');
+      this.tableName = await this.loadDynamoDBTableName();
     }
 
     const params = {
       TableName: this.tableName,
-      Limit: limit,
+      ProjectionExpression: "traderId, totalPnL, tradeCount, #ts", // Using expression attribute name for reserved word
+      ExpressionAttributeNames: {
+        "#ts": "timestamp"
+      }
     };
 
     try {
-      const command = new ScanCommand(params);
-      const response = await this.client.send(command);
-
-      if (!response.Items) {
+      console.log("📌 Fetching leaderboard with params:", JSON.stringify(params, null, 2));
+      const response = await this.client.send(new ScanCommand(params));
+      
+      if (!response.Items || response.Items.length === 0) {
+        console.log("ℹ️ No items found in DynamoDB");
         return [];
       }
 
+      console.log(`✅ Found ${response.Items.length} entries in leaderboard`);
+      
       return response.Items.map(item => ({
-        traderId: item.traderId?.S ?? '',
-        totalPnL: parseFloat(item.totalPnL?.N ?? '0'),
-        tradeCount: parseInt(item.tradeCount?.N ?? '0', 10),
-      })).sort((a, b) => b.totalPnL - a.totalPnL); // ✅ Sort leaderboard by highest PnL
+        trader: item.traderId?.S || "Unknown",
+        totalPnL: parseFloat(item.totalPnL?.N || "0"),
+        tradeCount: parseInt(item.tradeCount?.N || "0", 10),
+        timestamp: item.timestamp?.N 
+          ? new Date(parseInt(item.timestamp.N)).toISOString() 
+          : new Date().toISOString()
+      }));
     } catch (error) {
-      console.error('⚠️ Error fetching leaderboard:', error);
-      throw new Error('DynamoDB GetLeaderboard Error');
+      console.error("❌ ERROR: Fetching leaderboard from DynamoDB:", {
+        error: error.message,
+        code: error.code,
+        requestId: error.$metadata?.requestId
+      });
+      throw new Error(`DynamoDB Fetch Error: ${error.message}`);
     }
   }
+  
 }

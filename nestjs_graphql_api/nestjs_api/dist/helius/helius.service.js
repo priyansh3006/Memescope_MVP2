@@ -62,18 +62,17 @@ let HeliusService = class HeliusService {
             };
         });
     }
-    async getRecentSolanaTransactions(limit = 10) {
+    async getRecentSolanaTransactions() {
         const requestBody = {
             jsonrpc: '2.0',
             id: 1,
             method: 'getSignaturesForAddress',
             params: [
                 '11111111111111111111111111111111',
-                { limit },
             ],
         };
         try {
-            console.log(`🔄 Requesting latest ${limit} transactions from Solana RPC...`);
+            console.log(`🔄 Requesting transactions from Solana RPC...`);
             const response = await (0, rxjs_1.lastValueFrom)(this.httpService.post(this.solanaRpcUrl, requestBody));
             if (!response.data.result) {
                 throw new Error('Invalid response from Solana RPC');

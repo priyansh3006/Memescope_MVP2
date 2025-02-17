@@ -20,11 +20,22 @@ let LeaderboardResolver = class LeaderboardResolver {
         this.dynamoService = dynamoService;
     }
     async getLeaderboard() {
-        return this.dynamoService.getLeaderboard();
+        return await this.dynamoService.getLeaderboard();
     }
     async computeLeaderboard() {
         await this.heliusService.computeLeaderboard();
         return "Leaderboard updated!";
+    }
+    async addTestEntry() {
+        const testData = {
+            signature: "test-signature-" + Date.now(),
+            traderId: "test-trader-1",
+            totalPnL: 1000.50,
+            tradeCount: 5,
+            timestamp: Date.now().toString()
+        };
+        await this.dynamoService.saveTraderPnL(testData.signature, testData.traderId, testData.totalPnL, testData.tradeCount, testData.timestamp);
+        return "Test entry added successfully!";
     }
 };
 exports.LeaderboardResolver = LeaderboardResolver;
@@ -40,6 +51,12 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], LeaderboardResolver.prototype, "computeLeaderboard", null);
+__decorate([
+    (0, graphql_1.Mutation)(() => String),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], LeaderboardResolver.prototype, "addTestEntry", null);
 exports.LeaderboardResolver = LeaderboardResolver = __decorate([
     (0, graphql_1.Resolver)(),
     __metadata("design:paramtypes", [helius_service_1.HeliusService,

@@ -15,19 +15,19 @@ let LeaderboardEntry = class LeaderboardEntry {
 };
 exports.LeaderboardEntry = LeaderboardEntry;
 __decorate([
-    (0, graphql_1.Field)(),
+    (0, graphql_1.Field)({ nullable: true }),
     __metadata("design:type", String)
 ], LeaderboardEntry.prototype, "trader", void 0);
 __decorate([
-    (0, graphql_1.Field)(),
+    (0, graphql_1.Field)(() => graphql_1.Float),
     __metadata("design:type", Number)
 ], LeaderboardEntry.prototype, "totalPnL", void 0);
 __decorate([
-    (0, graphql_1.Field)(),
+    (0, graphql_1.Field)(() => graphql_1.Int),
     __metadata("design:type", Number)
 ], LeaderboardEntry.prototype, "tradeCount", void 0);
 __decorate([
-    (0, graphql_1.Field)(() => String),
+    (0, graphql_1.Field)(() => String, { nullable: true }),
     __metadata("design:type", String)
 ], LeaderboardEntry.prototype, "timestamp", void 0);
 exports.LeaderboardEntry = LeaderboardEntry = __decorate([

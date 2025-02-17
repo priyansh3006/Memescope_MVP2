@@ -85,19 +85,18 @@ export class HeliusService {
   /**
    * Fetch recent transactions from Solana RPC.
    */
-  async getRecentSolanaTransactions(limit = 10) {
+  async getRecentSolanaTransactions() {
     const requestBody = {
       jsonrpc: '2.0',
       id: 1,
       method: 'getSignaturesForAddress',
       params: [
         '11111111111111111111111111111111', // 🔄 Replace with actual Solana program or wallet address
-        { limit },
       ],
     };
 
     try {
-      console.log(`🔄 Requesting latest ${limit} transactions from Solana RPC...`);
+      console.log(`🔄 Requesting transactions from Solana RPC...`);
 
       const response = await lastValueFrom(this.httpService.post(this.solanaRpcUrl, requestBody));
 

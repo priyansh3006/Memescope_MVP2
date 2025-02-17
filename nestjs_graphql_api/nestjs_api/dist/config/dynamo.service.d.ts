@@ -1,3 +1,4 @@
+import { LeaderboardEntry } from '../leaderboard/trader.entity';
 export declare class DynamoService {
     private readonly client;
     private readonly ssmClient;
@@ -6,9 +7,5 @@ export declare class DynamoService {
     private loadDynamoDBTableName;
     saveTraderPnL(signature: string, traderId: string, totalPnL: number, tradeCount: number, timestamp: string): Promise<void>;
     fetchLeaderboard(): Promise<Record<string, import("@aws-sdk/client-dynamodb").AttributeValue>[]>;
-    getLeaderboard(limit?: number): Promise<{
-        traderId: string;
-        totalPnL: number;
-        tradeCount: number;
-    }[]>;
+    getLeaderboard(): Promise<LeaderboardEntry[]>;
 }

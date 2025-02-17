@@ -13,5 +13,5 @@ export declare class HeliusService {
         tradeCount: number;
         timestamp: string;
     }[]>;
-    getRecentSolanaTransactions(limit?: number): Promise<any>;
+    getRecentSolanaTransactions(): Promise<any>;
 }
