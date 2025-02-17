@@ -19,7 +19,7 @@ import (
 
 // Initialize AWS Session
 var awsSession = session.Must(session.NewSession(&aws.Config{
-	Region: aws.String("us-east-1"), // Will Change if using a different region
+	Region: aws.String("us-east-1"), // Will Change this if needed
 }))
 
 // Fetch Pulumi-managed resources from SSM
@@ -69,7 +69,6 @@ func getPulumiParameter(paramName string) string {
 
 // Initialize CloudWatch Log Stream
 func createLogStream() {
-	fmt.Println(logGroupName)
 	_, err := cloudWatchClient.CreateLogStream(&cloudwatchlogs.CreateLogStreamInput{
 		LogGroupName:  aws.String(logGroupName),
 		LogStreamName: aws.String(logStreamName),
@@ -131,8 +130,8 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		trade.TradeID = fmt.Sprintf("%d", time.Now().UnixNano())
-		trade.Timestamp = time.Now().Format(time.RFC3339)
+		trade.TradeID = fmt.Sprintf("%d", time.Now().UnixNano()) // Unique ID
+		trade.Timestamp = time.Now().Format(time.RFC3339)        // ISO 8601 timestamp
 
 		// Save Trade Action in DynamoDB
 		go saveTradeToDynamoDB(trade)
@@ -147,8 +146,8 @@ func saveTradeToDynamoDB(trade TradeAction) {
 	_, err := dynamoDB.PutItem(&dynamodb.PutItemInput{
 		TableName: aws.String(dynamoDBTable),
 		Item: map[string]*dynamodb.AttributeValue{
-			"TradeID":   {S: aws.String(trade.TradeID)},
-			"Timestamp": {S: aws.String(trade.Timestamp)},
+			"TradeID":   {S: aws.String(trade.TradeID)},   // Partition Key
+			"Timestamp": {S: aws.String(trade.Timestamp)}, // Sort Key
 			"Price":     {N: aws.String(fmt.Sprintf("%.2f", trade.Price))},
 			"Volume":    {N: aws.String(fmt.Sprintf("%d", trade.Volume))},
 			"Trader":    {S: aws.String(trade.Trader)},
@@ -161,7 +160,7 @@ func saveTradeToDynamoDB(trade TradeAction) {
 	}
 
 	// Publish Trade Action to SNS
-	publishTradeToSNS(trade)
+	go publishTradeToSNS(trade)
 }
 
 // Publish Trade Action to SNS

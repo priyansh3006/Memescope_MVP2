@@ -190,17 +190,21 @@ func main() {
 		}
 
 		// Intializing the  DynamoDB Table
-		tradeTable, err := dynamodb.NewTable(ctx, "TradesTable", &dynamodb.TableArgs{
+		// Initialize the DynamoDB Table with a composite primary key (Partition Key + Sort Key)
+		solanaTransactionsTable, err := dynamodb.NewTable(ctx, "solanaTransactions", &dynamodb.TableArgs{
 			Attributes: dynamodb.TableAttributeArray{
 				&dynamodb.TableAttributeArgs{
-					Name: pulumi.String("TradeID"),
-					Type: pulumi.String("S"),
+					Name: pulumi.String("signature"),
+					Type: pulumi.String("S"), // Hash Key (Primary Key)
+				},
+				&dynamodb.TableAttributeArgs{
+					Name: pulumi.String("timestamp"),
+					Type: pulumi.String("N"), // Sort Key
 				},
 			},
-			BillingMode:    pulumi.String("PAY_PER_REQUEST"), //AWS charges only for the read/write requests made.
-			HashKey:        pulumi.String("TradeID"),
-			StreamEnabled:  pulumi.Bool(true),
-			StreamViewType: pulumi.String("NEW_IMAGE"),
+			HashKey:     pulumi.String("signature"), // Primary Key
+			RangeKey:    pulumi.String("timestamp"), // Sort Key
+			BillingMode: pulumi.String("PAY_PER_REQUEST"),
 		})
 		if err != nil {
 			return err
@@ -303,11 +307,12 @@ func main() {
 		}
 
 		// Exporting the  Outputs
+		ctx.Export("Solanatable", solanaTransactionsTable.Name)
 		ctx.Export("vpcId", vpc.ID())
 		ctx.Export("subnet1Id", subnet1.ID())
 		ctx.Export("subnet2Id", subnet2.ID())
 		ctx.Export("securityGroupId", securityGroup.ID())
-		ctx.Export("dynamoDbTableName", tradeTable.Name)
+		ctx.Export("dynamoDbTableName", solanaTransactionsTable.Name)
 		ctx.Export("snsTopicArn", tradeUpdatesTopic.Arn)
 		ctx.Export("websocketLambdaArn", websocketLambda.Arn)
 		ctx.Export("apiGatewayUrl", apiGateway.ApiEndpoint)
