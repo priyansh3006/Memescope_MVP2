@@ -7,4 +7,7 @@ export class LeaderboardEntry {
 
   @Field(() => Float)
   pnl: number;
-}
+
+  @Field()
+  timestamp?: string;
+} 

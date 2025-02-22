@@ -9,30 +9,38 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.LeaderboardResolver = void 0;
+exports.LeaderboardResolver = exports.LeaderboardEntry = void 0;
 const graphql_1 = require("@nestjs/graphql");
 const dynamo_service_1 = require("../config/dynamo.service");
+let LeaderboardEntry = class LeaderboardEntry {
+};
+exports.LeaderboardEntry = LeaderboardEntry;
+__decorate([
+    (0, graphql_1.Field)(),
+    __metadata("design:type", String)
+], LeaderboardEntry.prototype, "wallet", void 0);
+__decorate([
+    (0, graphql_1.Field)(),
+    __metadata("design:type", Number)
+], LeaderboardEntry.prototype, "pnl", void 0);
+exports.LeaderboardEntry = LeaderboardEntry = __decorate([
+    (0, graphql_1.ObjectType)()
+], LeaderboardEntry);
 let LeaderboardResolver = class LeaderboardResolver {
     constructor(dynamoService) {
         this.dynamoService = dynamoService;
     }
     async getLeaderboard() {
-        console.log('📌 Fetching leaderboard from DynamoDB...');
-        const leaderboard = await this.dynamoService.getLeaderboard();
-        if (!leaderboard || leaderboard.length === 0) {
-            console.warn('⚠️ No leaderboard data found.');
-            return [];
-        }
-        console.log(`✅ Leaderboard retrieved with ${leaderboard.length} entries.`);
+        const leaderboard = this.dynamoService.getInMemoryLeaderboard();
         return leaderboard.map((entry) => ({
-            wallet: entry.wallet_address,
+            wallet: entry.wallet,
             pnl: entry.pnl,
         }));
     }
 };
 exports.LeaderboardResolver = LeaderboardResolver;
 __decorate([
-    (0, graphql_1.Query)(() => [String], { name: 'getLeaderboard' }),
+    (0, graphql_1.Query)(() => [LeaderboardEntry]),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)

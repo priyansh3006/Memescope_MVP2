@@ -1,3 +1,4 @@
-secrets.env
+.env
+
 node_modules
-wallet_service
+wallet_service.env

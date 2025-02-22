@@ -10,12 +10,9 @@ export class ConfigService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    console.log('✅ ConfigService initialized.');
+    console.log(' ConfigService initialized.');
   }
 
-  /**
-   * ✅ Fetch a parameter from AWS SSM Parameter Store using AWS SDK v3.
-   */
   private async getSSMParameter(name: string, withDecryption = false): Promise<string> {
     try {
       const command = new GetParameterCommand({
@@ -28,25 +25,19 @@ export class ConfigService implements OnModuleInit {
       if (result.Parameter && result.Parameter.Value) {
         return result.Parameter.Value;
       } else {
-        console.warn(`⚠️ Parameter ${name} not found.`);
+        console.warn(` Parameter ${name} not found.`);
         return '';
       }
     } catch (error) {
-      console.error(`❌ Error fetching SSM parameter ${name}:`, error.message);
+      console.error(` Error fetching SSM parameter ${name}:`, error.message);
       return '';
     }
   }
 
-  /**
-   * ✅ Get DynamoDB Table Name from SSM.
-   */
   async getDynamoDBTable(): Promise<string> {
     return await this.getSSMParameter('DynamoDBTableName');
   }
 
-  /**
-   * ✅ Get Helius API Key from SSM.
-   */
   async getHeliusAPIKey(): Promise<string> {
     return await this.getSSMParameter('HeliusApiKey', true);
   }

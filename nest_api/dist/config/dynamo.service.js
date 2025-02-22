@@ -12,28 +12,30 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.DynamoService = void 0;
 const common_1 = require("@nestjs/common");
 const client_dynamodb_1 = require("@aws-sdk/client-dynamodb");
-const config_1 = require("@nestjs/config");
+const config_service_1 = require("./config.service");
 const util_dynamodb_1 = require("@aws-sdk/util-dynamodb");
 let DynamoService = class DynamoService {
     constructor(configService) {
         this.configService = configService;
-        const region = this.configService.get('AWS_REGION') || 'us-east-1';
+        this.leaderboardData = [];
+        const region = 'us-east-1';
         this.dynamoDB = new client_dynamodb_1.DynamoDBClient({ region });
         this.tableName = '';
     }
     async onModuleInit() {
-        this.tableName = 'solanaTransactions-db3e21b';
+        this.tableName = 'solanaTransactions';
         if (!this.tableName) {
-            console.error('❌ DynamoDB Table Name is missing! Check AWS SSM.');
+            console.error('DynamoDB Table Name is missing! Check AWS SSM.');
             throw new Error('DynamoDB Table Name not found.');
         }
-        console.log(`✅ DynamoService initialized with table: ${this.tableName}`);
+        console.log(` DynamoService initialized with table: ${this.tableName}`);
     }
     async storeTopHolders(wallets) {
-        console.log(`🔍 Storing ${wallets.length} wallet addresses in DynamoDB...`);
+        console.log(` Storing ${wallets.length} wallet addresses in DynamoDB...`);
+        this.tableName = 'solanaTransactions';
         for (const wallet of wallets) {
             if (!wallet || typeof wallet !== 'string' || wallet.trim() === '') {
-                console.warn(`⚠️ Skipping invalid wallet: ${wallet}`);
+                console.warn(` Skipping invalid wallet: ${wallet}`);
                 continue;
             }
             const signature = `sig_${wallet}_${Date.now()}`;
@@ -50,49 +52,59 @@ let DynamoService = class DynamoService {
             });
             try {
                 await this.dynamoDB.send(params);
-                console.log(`✅ Stored wallet: ${wallet} with signature ${signature}`);
+                console.log(` Stored wallet: ${wallet} with signature ${signature}`);
             }
             catch (error) {
-                console.error(`❌ Error storing wallet ${wallet}:`, error.message);
+                console.error(` Error storing wallet ${wallet}:`, error.message);
             }
         }
     }
     async getLeaderboard() {
-        console.log('📌 Fetching leaderboard from DynamoDB...');
+        console.log(' Fetching leaderboard from DynamoDB...');
         const params = new client_dynamodb_1.ScanCommand({
             TableName: this.tableName,
         });
         try {
             const result = await this.dynamoDB.send(params);
             const leaderboard = result.Items ? result.Items.map(item => (0, util_dynamodb_1.unmarshall)(item)) : [];
-            console.log(`✅ Retrieved ${leaderboard.length} leaderboard entries.`);
+            console.log(` Retrieved ${leaderboard.length} leaderboard entries.`);
             return leaderboard.sort((a, b) => (b.pnl ?? 0) - (a.pnl ?? 0));
         }
         catch (error) {
-            console.error('❌ Error fetching leaderboard:', error.message);
+            console.error(' Error fetching leaderboard:', error.message);
             return [];
         }
     }
     async updatePnL(walletAddress, pnl) {
-        console.log(`🔄 Updating PnL for wallet: ${walletAddress}`);
+        console.log(` Updating PnL for wallet: ${walletAddress}`);
         const params = new client_dynamodb_1.UpdateItemCommand({
             TableName: this.tableName,
             Key: { wallet_address: { S: walletAddress } },
             UpdateExpression: 'SET pnl = :pnl',
             ExpressionAttributeValues: { ':pnl': { N: pnl.toString() } },
         });
+        const existingWallet = this.leaderboardData.find((item) => item.wallet === walletAddress);
+        if (existingWallet) {
+            existingWallet.pnl = pnl;
+        }
+        else {
+            this.leaderboardData.push({ wallet: walletAddress, pnl });
+        }
         try {
             await this.dynamoDB.send(params);
-            console.log(`✅ Updated PnL for wallet ${walletAddress}: ${pnl}`);
+            console.log(` Updated PnL for wallet ${walletAddress}: ${pnl}`);
         }
         catch (error) {
-            console.error(`❌ Error updating PnL for ${walletAddress}:`, error.message);
+            console.error(` Error updating PnL for ${walletAddress}:`, error.message);
         }
+    }
+    getInMemoryLeaderboard() {
+        return [...this.leaderboardData].sort((a, b) => b.pnl - a.pnl);
     }
 };
 exports.DynamoService = DynamoService;
 exports.DynamoService = DynamoService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [config_1.ConfigService])
+    __metadata("design:paramtypes", [config_service_1.ConfigService])
 ], DynamoService);
 //# sourceMappingURL=dynamo.service.js.map

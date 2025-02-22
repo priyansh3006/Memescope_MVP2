@@ -1,8 +1,13 @@
-import { HeliusService } from '../helius/helius.service';
-import { JupiterService } from '../jupiter/jupiter.service';
+import { HttpService } from '@nestjs/axios';
 export declare class TradeService {
-    private readonly heliusService;
-    private readonly jupiterService;
-    constructor(heliusService: HeliusService, jupiterService: JupiterService);
-    calculatePnL(walletAddress: string): Promise<number>;
+    private readonly httpService;
+    private priceCache;
+    private readonly CACHE_DURATION;
+    constructor(httpService: HttpService);
+    calculatePnL(walletAddress: string, transactions: any[]): Promise<number>;
+    fetchTokenPrice(tokenMint: string): Promise<number>;
+    private fetchPriceFromCoinGecko;
+    private fetchPriceFromJupiter;
+    private cachePrice;
+    private sleep;
 }

@@ -17,7 +17,7 @@ let ConfigService = class ConfigService {
         this.ssmClient = new client_ssm_1.SSMClient({ region: 'us-east-1' });
     }
     async onModuleInit() {
-        console.log('✅ ConfigService initialized.');
+        console.log(' ConfigService initialized.');
     }
     async getSSMParameter(name, withDecryption = false) {
         try {
@@ -30,12 +30,12 @@ let ConfigService = class ConfigService {
                 return result.Parameter.Value;
             }
             else {
-                console.warn(`⚠️ Parameter ${name} not found.`);
+                console.warn(` Parameter ${name} not found.`);
                 return '';
             }
         }
         catch (error) {
-            console.error(`❌ Error fetching SSM parameter ${name}:`, error.message);
+            console.error(` Error fetching SSM parameter ${name}:`, error.message);
             return '';
         }
     }

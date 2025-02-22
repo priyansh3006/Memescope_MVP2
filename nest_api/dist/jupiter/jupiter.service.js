@@ -18,15 +18,15 @@ let JupiterService = class JupiterService {
         this.httpService = httpService;
     }
     async onModuleInit() {
-        console.log(`✅ JupiterService initialized (using CoinGecko as a fallback).`);
+        console.log(` JupiterService initialized (using CoinGecko as a fallback).`);
     }
     async getMultipleTokenPrices(tokenSymbols) {
-        console.log(`🔍 Fetching token prices for: ${tokenSymbols.join(', ')}`);
+        console.log(` Fetching token prices for: ${tokenSymbols.join(', ')}`);
         const tokenIds = tokenSymbols.map(symbol => symbol.toLowerCase()).join(',');
         const url = `https://api.coingecko.com/api/v3/simple/price?ids=${tokenIds}&vs_currencies=usd`;
         try {
             const response = await (0, rxjs_1.firstValueFrom)(this.httpService.get(url));
-            console.log(`✅ Token Prices Received:`, response.data);
+            console.log(` Token Prices Received:`, response.data);
             const tokenPrices = {};
             tokenSymbols.forEach(symbol => {
                 tokenPrices[symbol] = response.data[symbol.toLowerCase()]?.usd || 0;
@@ -34,7 +34,7 @@ let JupiterService = class JupiterService {
             return tokenPrices;
         }
         catch (error) {
-            console.error(`❌ Error fetching token prices:`, error.message);
+            console.error(` Error fetching token prices:`, error.message);
             return {};
         }
     }
